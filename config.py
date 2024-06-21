@@ -1,15 +1,16 @@
 from datetime import datetime
 import numpy as np
+from typing import Final
 
 # 原始地址
-REMOTE_ADDRESS = ("192.168.1.240", 8007)
-LOCAL_ADDRESS = ("192.168.1.100", 8009)
+REMOTE_ADDRESS: Final = ("192.168.1.240", 8007)
+LOCAL_ADDRESS: Final = ("192.168.1.100", 8009)
 
 # # 转发后的地址
 # REMOTE_ADDRESS = ("192.168.1.100", 8009)
 # LOCAL_ADDRESS = ("192.168.1.100", 8010)
 
-DAS_CONFIG = {
+DAS_CONFIG: Final = {
     "dataSize": 1999,
     # 有效点位范围
     "validPointRange": range(0, 1999),
@@ -38,7 +39,7 @@ assert (
 # 确保有效点位范围的步长为1
 assert DAS_CONFIG["validPointRange"].step == 1
 
-FRAME_COUNTER = {
+FRAME_COUNTER: Final = {
     "interval": 60,  # 统计间隔，单位: 秒
     "gist": "振动解调数据",  # 统计依据
 }
@@ -46,14 +47,14 @@ FRAME_COUNTER = {
 assert FRAME_COUNTER["gist"] in DAS_CONFIG["targets"]
 
 # 处理数据的最小时间间隔，所有处理任务都必须是它的整数倍，单位: 秒
-HANDLE_INTERVAL = 5
+HANDLE_INTERVAL: Final = 5
 # 如果不为空，则会强制校准该数据的保存开始时间，但在保存时段之前的所有数据均不会被处理
-STRICT_BEGIN_TARGET = "振动解调数据"
+STRICT_BEGIN_TARGET: Final = "振动解调数据"
 # 确保STRICT_BEGIN_TARGET在SAVE_CONFIG的目标字典中
 assert not STRICT_BEGIN_TARGET or STRICT_BEGIN_TARGET in DAS_CONFIG["targets"]
 
 # 时间范围设置在当前时间前则不会保存数据
-SAVE_CONFIG = {
+SAVE_CONFIG: Final = {
     "begin": datetime.strptime("2024-05-29 15:32:00", "%Y-%m-%d %H:%M:%S"),
     "end": datetime.strptime("2024-05-29 19:21:00", "%Y-%m-%d %H:%M:%S"),
     "path": "data",  # 文件保存路径
@@ -75,7 +76,7 @@ for _, params in SAVE_CONFIG["targets"].items():
 for target in SAVE_CONFIG["targets"]:
     assert target in DAS_CONFIG["targets"]
 
-PLOT_CONFIG = {
+PLOT_CONFIG: Final = {
     "enable": True,  # 是否显示图表
     "interval": 20,  # 图表更新间隔，单位: ms
     "target": "振动解调数据",  # 图表显示的数据
@@ -84,12 +85,12 @@ PLOT_CONFIG = {
 assert PLOT_CONFIG["target"] in DAS_CONFIG["targets"]
 
 # pingpong缓冲区大小
-PINGPONG_SIZE = 3
+PINGPONG_SIZE: Final = 3
 # 确保缓冲区大小大于等于2
 assert PINGPONG_SIZE >= 2
 
 # 声音播放配置
-SOUND_CONFIG = {
+SOUND_CONFIG: Final = {
     "enable": True,  # 是否播放声音
     "target": "振动解调数据",  # 播放声音的数据
     "point": 1900,  # 播放声音的点位
