@@ -9,8 +9,10 @@ import numpy as np
 from config import (
     DAS_CONFIG,
     SAVE_CONFIG,
+    SOUND_CONFIG,
 )
-from utils import DataBuffer, log
+from utils import DataBuffer, log, butter_bandpass_filter
+import sounddevice as sd
 
 
 class DataHandler:
@@ -72,19 +74,30 @@ class DataHandler:
         with open(filePath, "wb") as f:
             os.write(f.fileno(), self._saveCache[name]["buffer"])
 
-    def cal_test(self, name: str, dataBuffer: DataBuffer):
-        if name != "振动解调数据":
+    def play_sound(self, name: str, dataBuffer: DataBuffer):
+        if name != SOUND_CONFIG["target"]:
             return
         with dataBuffer["lock"]:
-            data = np.frombuffer(dataBuffer["buffer"], dtype=DAS_CONFIG["dtype"]).copy()
-        # 时间轴上做FFT
-        data = np.fft.fft(data.reshape(-1, len(DAS_CONFIG["validPointRange"])), axis=1)
+            data = np.frombuffer(
+                dataBuffer["buffer"], dtype=DAS_CONFIG["dtype"]
+            ).reshape(-1, len(DAS_CONFIG["validPointRange"]))[:, SOUND_CONFIG["point"]]
+
+        sampleRate = DAS_CONFIG["targets"][name]["sampleRate"]
+        data = butter_bandpass_filter(data, 100, 1000, sampleRate, order=5)
+        assert data is np.ndarray
+        # 绝对值大于最大值的数据置零
+        data[np.abs(data) > SOUND_CONFIG["max"]] = 0
+        # 数据缩放到[-1, 1]之间
+        data = data / SOUND_CONFIG["max"]
+        sd.play(data, sampleRate)
 
     def on_command(self, exit_event: multiprocessing.synchronize.Event):
         while not exit_event.is_set():
             try:
                 (name, pingpong, recordTime) = self._taskQueue.get(timeout=1)
                 self.save_data(name, self._pingpangBuffers[name][pingpong], recordTime)
-                self.cal_test(name, self._pingpangBuffers[name][pingpong])
+                if SOUND_CONFIG["enable"]:
+                    self.play_sound(name, self._pingpangBuffers[name][pingpong])
+
             except queue.Empty:
                 pass

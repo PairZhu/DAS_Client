@@ -46,7 +46,7 @@ FRAME_COUNTER = {
 assert FRAME_COUNTER["gist"] in DAS_CONFIG["targets"]
 
 # 处理数据的最小时间间隔，所有处理任务都必须是它的整数倍，单位: 秒
-HANDLE_INTERVAL = 1
+HANDLE_INTERVAL = 5
 # 如果不为空，则会强制校准该数据的保存开始时间，但在保存时段之前的所有数据均不会被处理
 STRICT_BEGIN_TARGET = "振动解调数据"
 # 确保STRICT_BEGIN_TARGET在SAVE_CONFIG的目标字典中
@@ -60,7 +60,7 @@ SAVE_CONFIG = {
     "targets": {
         "振动解调数据": {
             "prefix": "Raw",
-            "interval": 1,
+            "interval": 10,
         },
         "光强数据": {
             "prefix": "Light",
@@ -87,3 +87,13 @@ assert PLOT_CONFIG["target"] in DAS_CONFIG["targets"]
 PINGPONG_SIZE = 3
 # 确保缓冲区大小大于等于2
 assert PINGPONG_SIZE >= 2
+
+# 声音播放配置
+SOUND_CONFIG = {
+    "enable": True,  # 是否播放声音
+    "target": "振动解调数据",  # 播放声音的数据
+    "point": 1900,  # 播放声音的点位
+    "max": 1000,  # 声音信号振幅的最大值
+}
+# 确保播放的目标在目标字典
+assert SOUND_CONFIG["target"] in DAS_CONFIG["targets"]
