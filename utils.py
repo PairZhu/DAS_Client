@@ -1,3 +1,4 @@
+import ctypes
 import shutil
 from datetime import datetime
 import logging
@@ -5,6 +6,14 @@ from logging.handlers import QueueHandler, QueueListener
 import os
 import re
 import queue
+import multiprocessing.synchronize
+from typing import TypedDict
+import atexit
+
+
+class DataBuffer(TypedDict):
+    buffer: ctypes.Array[ctypes.c_byte]
+    lock: multiprocessing.synchronize.Lock
 
 
 class RollingStreamHandler(logging.StreamHandler):
@@ -78,3 +87,8 @@ def extract_timestamp(filename):
         int(millisecond) * 1000,
     )
     return dt, dt.timestamp()
+
+
+log, logListener = getThreadLogger("DAS")
+logListener.start()
+atexit.register(logListener.stop)
