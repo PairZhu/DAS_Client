@@ -39,9 +39,29 @@ class RollingStreamHandler(logging.StreamHandler):
             self.handleError(record)
 
 
-def getThreadLogger(name: str | None = None) -> tuple[logging.Logger, QueueListener]:
+class LazyQueueHandler(QueueHandler):
+    def __init__(self, log_queue, listener):
+        super().__init__(log_queue)
+        self.listener = listener
+        self.listener_started = False
+
+    def emit(self, record):
+        self.start()
+        super().emit(record)
+
+    def start(self):
+        if not self.listener_started:
+            self.listener.start()
+            self.listener_started = True
+
+    def stop(self):
+        if self.listener_started:
+            self.listener.stop()
+            self.listener_started = False
+
+
+def getThreadLogger(name: str | None = None) -> logging.Logger:
     logQueue = queue.Queue()
-    queueHandler = QueueHandler(logQueue)
 
     formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -57,11 +77,15 @@ def getThreadLogger(name: str | None = None) -> tuple[logging.Logger, QueueListe
     listener = QueueListener(
         logQueue, streamHandler, fileHandler, respect_handler_level=True
     )
+    lazyQueueHandler = LazyQueueHandler(logQueue, listener)
+
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-    logger.addHandler(queueHandler)
+    logger.addHandler(lazyQueueHandler)
 
-    return logger, listener
+    atexit.register(lazyQueueHandler.stop)
+
+    return logger
 
 
 def bytes_to_hex(bytesData: bytes) -> str:
@@ -89,6 +113,4 @@ def extract_timestamp(filename):
     return dt, dt.timestamp()
 
 
-log, logListener = getThreadLogger("DAS")
-logListener.start()
-atexit.register(logListener.stop)
+log = getThreadLogger("DAS")

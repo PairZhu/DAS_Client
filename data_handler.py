@@ -11,7 +11,6 @@ from config import (
     SAVE_CONFIG,
 )
 from utils import DataBuffer, log
-import wave
 
 
 class DataHandler:
