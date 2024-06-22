@@ -12,8 +12,7 @@ LOCAL_ADDRESS: Final = ("192.168.1.100", 8009)
 
 DAS_CONFIG: Final = {
     "dataSize": 1999,
-    # 有效点位范围
-    "validPointRange": range(0, 1999),
+    "validPointRange": range(0, 1999),  # 有效点位范围
     "pulseWidth": 100,  # 脉冲宽度, 单位: ns
     "opticalSwitchFlag": [False] * 16 * 2,  # 光开关开启标志
     "opticalSwitchCounterThreshold": 0,  # 光开关计数器阈值
@@ -47,21 +46,22 @@ FRAME_COUNTER: Final = {
 assert FRAME_COUNTER["gist"] in DAS_CONFIG["targets"]
 
 # 处理数据的最小时间间隔，所有处理任务都必须是它的整数倍，单位: 秒
-HANDLE_INTERVAL: Final = 5
-# 如果不为空，则会强制校准该数据的保存开始时间，但在保存时段之前的所有数据均不会被处理
+HANDLE_INTERVAL: Final = 1
+
+# 如果不为空，则会强制校准该数据的处理开始时间，但在保存时段之前的所有数据均不会被处理
 STRICT_BEGIN_TARGET: Final = "振动解调数据"
 # 确保STRICT_BEGIN_TARGET在SAVE_CONFIG的目标字典中
 assert not STRICT_BEGIN_TARGET or STRICT_BEGIN_TARGET in DAS_CONFIG["targets"]
 
-# 时间范围设置在当前时间前则不会保存数据
 SAVE_CONFIG: Final = {
+    "enable": False,  # 是否保存数据
     "begin": datetime.strptime("2024-05-29 15:32:00", "%Y-%m-%d %H:%M:%S"),
     "end": datetime.strptime("2024-05-29 19:21:00", "%Y-%m-%d %H:%M:%S"),
     "path": "data",  # 文件保存路径
     "targets": {
         "振动解调数据": {
             "prefix": "Raw",
-            "interval": 10,
+            "interval": 1,
         },
         "光强数据": {
             "prefix": "Light",

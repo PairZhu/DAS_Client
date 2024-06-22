@@ -37,6 +37,20 @@ class DataHandler:
                 ),
                 "offset": 0,  # 缓存的偏移量"
             }
+        if SAVE_CONFIG["enable"]:
+            self._saving = False
+            self._saveCache: dict[str, DataHandler._BufferDict] = {}
+            for name in SAVE_CONFIG["targets"]:
+                self._saveCache[name] = {
+                    "buffer": RawArray(
+                        ctypes.c_byte,
+                        DAS_CONFIG["targets"][name]["sampleRate"]
+                        * SAVE_CONFIG["targets"][name]["interval"]
+                        * len(DAS_CONFIG["validPointRange"])
+                        * DAS_CONFIG["dtype"].itemsize,
+                    ),
+                    "offset": 0,  # 缓存的偏移量"
+                }
 
     def save_data(self, name: str, dataBuffer: DataBuffer, saveTime: datetime):
         if not name in SAVE_CONFIG["targets"]:
@@ -95,7 +109,10 @@ class DataHandler:
         while not exit_event.is_set():
             try:
                 (name, pingpong, recordTime) = self._taskQueue.get(timeout=1)
-                self.save_data(name, self._pingpangBuffers[name][pingpong], recordTime)
+                if SAVE_CONFIG["enable"]:
+                    self.save_data(
+                        name, self._pingpangBuffers[name][pingpong], recordTime
+                    )
                 if SOUND_CONFIG["enable"]:
                     self.play_sound(name, self._pingpangBuffers[name][pingpong])
 
