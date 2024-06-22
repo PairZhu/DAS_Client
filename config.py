@@ -95,6 +95,9 @@ SOUND_CONFIG: Final = {
     "target": "振动解调数据",  # 播放声音的数据
     "point": 1900,  # 播放声音的点位
     "max": 1000,  # 声音信号振幅的最大值
+    "lowcut": 100,  # 低通滤波截止频率
+    "highcut": 1000,  # 高通滤波截止频率
+    "order": 5,  # 滤波器阶数
 }
 # 确保播放的目标在目标字典
 assert SOUND_CONFIG["target"] in DAS_CONFIG["targets"]

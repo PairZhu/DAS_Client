@@ -6,11 +6,7 @@ import os
 from typing import TypedDict
 import queue
 import numpy as np
-from config import (
-    DAS_CONFIG,
-    SAVE_CONFIG,
-    SOUND_CONFIG,
-)
+from config import DAS_CONFIG, SAVE_CONFIG, SOUND_CONFIG, HANDLE_INTERVAL
 from utils import DataBuffer, log, butter_bandpass_filter
 import sounddevice as sd
 
@@ -24,19 +20,6 @@ class DataHandler:
         self._pingpangBuffers = pingpangBuffers
         self._taskQueue = taskQueue
 
-        self._saving = False
-        self._saveCache: dict[str, DataHandler._BufferDict] = {}
-        for name in SAVE_CONFIG["targets"]:
-            self._saveCache[name] = {
-                "buffer": RawArray(
-                    ctypes.c_byte,
-                    DAS_CONFIG["targets"][name]["sampleRate"]
-                    * SAVE_CONFIG["targets"][name]["interval"]
-                    * len(DAS_CONFIG["validPointRange"])
-                    * DAS_CONFIG["dtype"].itemsize,
-                ),
-                "offset": 0,  # 缓存的偏移量"
-            }
         if SAVE_CONFIG["enable"]:
             self._saving = False
             self._saveCache: dict[str, DataHandler._BufferDict] = {}
@@ -51,6 +34,8 @@ class DataHandler:
                     ),
                     "offset": 0,  # 缓存的偏移量"
                 }
+        if SOUND_CONFIG["enable"]:
+            self.stream = None
 
     def save_data(self, name: str, dataBuffer: DataBuffer, saveTime: datetime):
         if not name in SAVE_CONFIG["targets"]:
@@ -92,18 +77,36 @@ class DataHandler:
         if name != SOUND_CONFIG["target"]:
             return
         with dataBuffer["lock"]:
-            data = np.frombuffer(
-                dataBuffer["buffer"], dtype=DAS_CONFIG["dtype"]
-            ).reshape(-1, len(DAS_CONFIG["validPointRange"]))[:, SOUND_CONFIG["point"]]
+            data = (
+                np.frombuffer(dataBuffer["buffer"], dtype=DAS_CONFIG["dtype"])
+                .reshape(-1, len(DAS_CONFIG["validPointRange"]))[
+                    :, SOUND_CONFIG["point"]
+                ]
+                .astype(np.float32)
+            )
 
         sampleRate = DAS_CONFIG["targets"][name]["sampleRate"]
-        data = butter_bandpass_filter(data, 100, 1000, sampleRate, order=5)
+        data = butter_bandpass_filter(
+            data,
+            SOUND_CONFIG["lowcut"],
+            SOUND_CONFIG["highcut"],
+            sampleRate,
+            order=SOUND_CONFIG["order"],
+        )
         assert data is np.ndarray
         # 绝对值大于最大值的数据置零
         data[np.abs(data) > SOUND_CONFIG["max"]] = 0
         # 数据缩放到[-1, 1]之间
         data = data / SOUND_CONFIG["max"]
-        sd.play(data, sampleRate)
+        if self.stream is None:
+            self.stream = sd.OutputStream(
+                samplerate=sampleRate,
+                channels=1,
+                dtype=np.float32,
+                blocksize=sampleRate * HANDLE_INTERVAL,
+            )
+            self.stream.start()
+        self.stream.write(data[: self.stream.write_available])
 
     def on_command(self, exit_event: multiprocessing.synchronize.Event):
         while not exit_event.is_set():
