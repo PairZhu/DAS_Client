@@ -105,7 +105,7 @@ class ErrorLogger:
         self._lastWarnTime = None
         self._interval = minInterval
 
-    def on_command(self, e: Exception):
+    def on_error(self, e: Exception):
         if (
             self._lastWarnTime is None
             or time.time() - self._lastWarnTime >= self._interval
@@ -229,7 +229,7 @@ def main():
         os.mkdir(SAVE_CONFIG["path"])
 
     protocol = ServerProtocol()
-    protocol.on("error", ErrorLogger().on_command)
+    protocol.on("error", ErrorLogger().on_error)
 
     pingpangBuffers: dict[str, list[DataBuffer]] = {}
     for name, params in DAS_CONFIG["targets"].items():
