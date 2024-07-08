@@ -1,20 +1,20 @@
 # coding=utf-8
 
 import itertools
+import functools
 import time
 import asyncio
-from command import RecvCommand, SendCommand
-import matplotlib.pyplot as plt
 import numpy as np
+import math
+import ctypes
 from multiprocessing import Process, RawArray, Lock, Queue, Event
 import multiprocessing.synchronize
-import ctypes
-import matplotlib.animation as animation
-from typing import TypedDict, Any
+from typing import TypedDict
 import os
 import atexit
 from datetime import datetime, timedelta
 from das_udp import ServerProtocol
+from command import RecvCommand, SendCommand
 from config import (
     DAS_CONFIG,
     REMOTE_ADDRESS,
@@ -160,67 +160,129 @@ class DataRecorder:
 
 
 class PlotData:
-    def __init__(self, dataBuffer: DataBuffer):
-        self._dataBuffer = dataBuffer
+    def __init__(self, dataBuffers: dict[str, DataBuffer]):
+        self._dataBuffers = dataBuffers
 
     def on_command(self, cmd: RecvCommand):
-        if cmd.name != PLOT_CONFIG["target"]:
+        if not cmd.name in self._dataBuffers:
             return
-        if not self._dataBuffer["lock"].acquire(block=False):
+
+        if not self._dataBuffers[cmd.name]["lock"].acquire(block=False):
             return
         addr = (
-            ctypes.addressof(self._dataBuffer["buffer"])
+            ctypes.addressof(self._dataBuffers[cmd.name]["buffer"])
             + DAS_CONFIG["validPointRange"].start
         )
-        ctypes.memmove(addr, cmd.body, len(self._dataBuffer["buffer"]))
-        self._dataBuffer["lock"].release()
+        ctypes.memmove(addr, cmd.body, len(self._dataBuffers[cmd.name]["buffer"]))
+        self._dataBuffers[cmd.name]["lock"].release()
 
 
-def show_plot(dataBuffer: DataBuffer):
+def show_plot(dataBuffers: dict[str, DataBuffer]):
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+    import matplotlib.colors as mcolors
+
+    plt.rcParams["font.family"] = "SimHei"
+    plt.rcParams["axes.unicode_minus"] = False
+
     H_WHITESPACE = 0.05
     V_WHITESPACE = 0.05
-    fig, (axLine, axHeat) = plt.subplots(2, 1)
-    (line,) = axLine.plot(np.zeros(len(DAS_CONFIG["validPointRange"])))
-    axLine.set_xlim(
-        DAS_CONFIG["validPointRange"].start, DAS_CONFIG["validPointRange"].stop - 1
-    )
-    axLine.set_ylim(-20, 20)
-    heatData = np.log10(np.zeros((100, len(DAS_CONFIG["validPointRange"]))) + 1e-5)
-    heatImg = axHeat.imshow(heatData, aspect="auto", cmap="jet")
-    heatImg.set_clim(-5, 2)
-    plt.colorbar(heatImg, aspect=100, pad=0.1, orientation="horizontal")
-    plt.subplots_adjust(
-        left=H_WHITESPACE,
-        right=1 - H_WHITESPACE,
-        bottom=V_WHITESPACE,
-        top=1 - V_WHITESPACE,
-        wspace=0.1,
-        hspace=0.1,
-    )
 
-    def update_plot(_):
-        nonlocal line, heatData
-        with dataBuffer["lock"]:
-            data = (
-                np.frombuffer(dataBuffer["buffer"], dtype=DAS_CONFIG["dtype"])
-                / 255
-                * np.pi
+    def log_trans(x):
+        return np.log10(np.abs(x) + 1e-6)
+
+    def update_plot(name, datasets, _):
+        nonlocal dataBuffers
+        for i, chart in enumerate(charts):
+            with dataBuffers[name]["lock"]:
+                data = (
+                    np.frombuffer(
+                        dataBuffers[name]["buffer"],
+                        dtype=DAS_CONFIG["dtype"],
+                    )
+                    / 255
+                    * np.pi
+                )
+            if chart["type"] == "heat":
+                heatData = np.roll(datasets[i].get_array(), -1, axis=0)
+                heatData[-1, :] = log_trans(data)
+                datasets[i].set_data(heatData)
+            elif chart["type"] == "space":
+                datasets[i].set_ydata(data)
+            elif chart["type"] == "time":
+                timeData = np.roll(datasets[i].get_ydata(), -1)
+                timeData[-1] = data[chart["point"]]
+                datasets[i].set_ydata(timeData)
+            else:
+                raise ValueError(f"无效的图表类型: {chart['type']}")
+        return datasets
+
+    # 保持对动画的引用，防止被回收
+    anis = []
+
+    for name, target in PLOT_CONFIG["targets"].items():
+        charts = target["charts"]
+        nrows = math.ceil(len(charts) ** 0.5)
+        ncols = math.ceil(len(charts) / nrows)
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+        axes = axes.flatten()
+        plt.subplots_adjust(
+            left=H_WHITESPACE,
+            right=1 - H_WHITESPACE,
+            bottom=V_WHITESPACE,
+            top=1 - V_WHITESPACE,
+            wspace=0.15,
+            hspace=0.25,
+        )
+        fig.canvas.manager.set_window_title(name)  # type: ignore
+        datasets = []
+        for i, chart in enumerate(charts):
+            if chart["type"] == "heat":
+                data = axes[i].imshow(
+                    log_trans(
+                        np.zeros((chart["size"], len(DAS_CONFIG["validPointRange"])))
+                    ),
+                    aspect="auto",
+                    norm=mcolors.Normalize(
+                        vmin=log_trans(0),
+                        vmax=log_trans(max(-target["min"], target["max"])),
+                    ),
+                )
+                datasets.append(data)
+                axes[i].set_title("热力图")
+            elif chart["type"] == "space":
+                (data,) = axes[i].plot(np.zeros(len(DAS_CONFIG["validPointRange"])))
+                datasets.append(data)
+                axes[i].set_xlim(
+                    DAS_CONFIG["validPointRange"].start,
+                    DAS_CONFIG["validPointRange"].stop - 1,
+                )
+                axes[i].set_ylim(target["min"], target["max"])
+                axes[i].set_title("空间波形")
+            elif chart["type"] == "time":
+                (data,) = axes[i].plot(np.zeros(chart["size"]))
+                datasets.append(data)
+                axes[i].set_xlim(0, chart["size"] - 1)
+                axes[i].set_ylim(target["min"], target["max"])
+                axes[i].set_title(f"时间波形(点位:{chart['point']})")
+            else:
+                raise ValueError(f"无效的图表类型: {chart['type']}")
+
+        # 删除多余的图表
+        for i in range(len(charts), len(axes)):
+            fig.delaxes(axes[i])
+
+        anis.append(
+            animation.FuncAnimation(
+                fig,
+                functools.partial(update_plot, name, datasets),
+                interval=PLOT_CONFIG["interval"],
+                blit=True,
+                frames=itertools.cycle([None]),  # type: ignore
+                save_count=0,
             )
-        line.set_ydata(data)
-        data: np.ndarray[Any, np.dtype[Any]] = np.log10(np.abs(data) + 1e-5)
-        heatData = np.roll(heatData, -1, axis=0)
-        heatData[-1, :] = data
-        heatImg.set_data(heatData)
-        return (line, heatImg)
+        )
 
-    ani = animation.FuncAnimation(
-        fig,
-        update_plot,
-        interval=PLOT_CONFIG["interval"],
-        blit=True,
-        frames=itertools.cycle([None]),  # type: ignore
-        save_count=1,
-    )
     plt.show()
 
 
@@ -252,14 +314,16 @@ def main():
     protocol.on("command", DataRecorder(pingpangBuffers, taskQueue).on_command)
 
     if PLOT_CONFIG["enable"]:
-        currentBuffer: DataBuffer = {
-            "buffer": RawArray(
-                ctypes.c_byte,
-                len(DAS_CONFIG["validPointRange"]) * DAS_CONFIG["dtype"].itemsize,
-            ),
-            "lock": Lock(),
-        }
-        protocol.on("command", PlotData(currentBuffer).on_command)
+        currentBuffers: dict[str, DataBuffer] = {}
+        for name in PLOT_CONFIG["targets"]:
+            currentBuffers[name] = {
+                "buffer": RawArray(
+                    ctypes.c_byte,
+                    len(DAS_CONFIG["validPointRange"]) * DAS_CONFIG["dtype"].itemsize,
+                ),
+                "lock": Lock(),
+            }
+        protocol.on("command", PlotData(currentBuffers).on_command)
 
     # 退出事件
     exit_event = Event()
@@ -286,7 +350,7 @@ def main():
     atexit.register(on_exit)
 
     if PLOT_CONFIG["enable"]:
-        show_plot(currentBuffer)
+        show_plot(currentBuffers)
     else:
         try:
             communicator.join()
