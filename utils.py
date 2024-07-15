@@ -2,7 +2,7 @@ import ctypes
 import shutil
 from datetime import datetime
 import logging
-from logging.handlers import QueueHandler, QueueListener
+from logging.handlers import QueueHandler, QueueListener, TimedRotatingFileHandler
 import os
 import re
 import queue
@@ -10,6 +10,7 @@ import multiprocessing.synchronize
 from typing import TypedDict
 import atexit
 from scipy.signal import butter, lfilter
+from config import LOG_CONFIG
 
 
 class DataBuffer(TypedDict):
@@ -71,7 +72,14 @@ def getThreadLogger(name: str | None = None) -> logging.Logger:
     streamHandler.setLevel(logging.DEBUG)
     streamHandler.setFormatter(formatter)
 
-    fileHandler = logging.FileHandler("output.log", encoding="utf-8")
+    fileHandler = TimedRotatingFileHandler(
+        os.path.join(LOG_CONFIG["path"], "das.log"),
+        when="midnight",
+        interval=1,
+        backupCount=7,
+        encoding="utf-8",
+    )
+    fileHandler.suffix = "%Y-%m-%d"
     fileHandler.setLevel(logging.INFO)
     fileHandler.setFormatter(formatter)
 
@@ -81,7 +89,7 @@ def getThreadLogger(name: str | None = None) -> logging.Logger:
     lazyQueueHandler = LazyQueueHandler(logQueue, listener)
 
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(LOG_CONFIG["level"])
     logger.addHandler(lazyQueueHandler)
 
     atexit.register(lazyQueueHandler.stop)

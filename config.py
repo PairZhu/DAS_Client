@@ -1,5 +1,6 @@
 from datetime import datetime
 import numpy as np
+import logging
 from typing import Final
 
 # 原始地址
@@ -130,7 +131,7 @@ for name, target in PLOT_CONFIG["targets"].items():
 # pingpong缓冲区大小
 PINGPONG_SIZE: Final = 3
 # 配置校验
-assert PINGPONG_SIZE >= 2, f"PINGPONG_SIZE必须大于等于2，当前值为{PINGPONG_SIZE}"
+assert PINGPONG_SIZE >= 2, f"PINGPONG_SIZE必须大于等于2"
 
 # 声音播放配置
 SOUND_CONFIG: Final = {
@@ -149,3 +150,14 @@ assert (
 assert (
     SAVE_CONFIG["point"] in DAS_CONFIG["validPointRange"]
 ), f"{SAVE_CONFIG['point']}不在有效点位范围"
+
+# 日志配置
+LOG_CONFIG: Final = {
+    "level": "DEBUG",  # 动态帧率显示仅在DEBUG等级下显示
+    "path": "logs",  # 日志保存路径
+    "backupCount": 7,  # 日志备份天数
+}
+# 配置校验
+assert (
+    LOG_CONFIG["level"] in logging._nameToLevel
+), f"{LOG_CONFIG['level']}不是有效的日志级别"

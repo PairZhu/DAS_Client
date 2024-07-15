@@ -1,13 +1,15 @@
 import re
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+from config import LOG_CONFIG
 
 # 中文支持
 plt.rcParams["font.sans-serif"] = ["SimHei"]
 
 PRECISION = 0.0001
 
-with open("output.log", "r", encoding="utf-8") as f:
+with open(os.path.join(LOG_CONFIG["path"], "das.log"), "r", encoding="utf-8") as f:
     log = f.read()
 
 pattern = re.compile(
