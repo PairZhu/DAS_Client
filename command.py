@@ -41,13 +41,14 @@ class Command:
 
     def __init__(self, bytesData: bytes):
         pos = 0
+        mv = memoryview(bytesData)
 
-        def read_bytes(n: int):
-            nonlocal pos
+        def read_bytes(n: int) -> memoryview:
+            nonlocal pos, mv
             pos += n
-            if pos > len(bytesData):
+            if pos > len(mv):
                 raise DataNotReceived()
-            return bytesData[pos - n : pos]
+            return mv[pos - n : pos]
 
         self.frameStart: bytes = read_bytes(Command.FRAME_START_LEN)
         self.deviceTypeCode: bytes = read_bytes(Command.DEVICE_TYPE_CODE_LEN)
@@ -70,7 +71,7 @@ class Command:
             raise ValueError(f"Body length {self.bodyLength} is too long")
         self.body: bytes = read_bytes(self.bodyLength) if self.bodyIncluded else b""
         self.frameEnd: bytes = read_bytes(Command.FRAME_END_LEN)
-        self.bytesData: bytes = bytesData[:pos]
+        self.bytesData: bytes = mv[:pos]
         self.name: str = self.get_type()
 
     def get_type(self):

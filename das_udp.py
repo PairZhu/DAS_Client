@@ -8,7 +8,7 @@ class ServerProtocol(asyncio.DatagramProtocol):
 
     def __init__(self):
         self.enable = False
-        self.dataCache = b""
+        self.dataCache = bytearray()
         self.cmdListener = []
         self.errorListener = []
 
@@ -31,18 +31,19 @@ class ServerProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data, addr):
         if addr != REMOTE_ADDRESS or not self.enable:
             return
-        self.dataCache += data
+        self.dataCache.extend(data)
         # 一次数据可能有多个命令
         while True:
             cmdFront = self.dataCache.find(RECV_START)
             cmdRear = self.dataCache.rfind(RECV_END)
             if cmdFront == -1:
-                self.dataCache = self.dataCache[-len(RECV_START) :]
+                if len(self.dataCache) > len(RECV_START):
+                    del self.dataCache[: -len(RECV_START)]
                 break
             if cmdRear <= cmdFront:
-                self.dataCache = self.dataCache[cmdFront:]
+                del self.dataCache[:cmdFront]
                 if len(self.dataCache) > self.MAX_FRAME_SIZE:
-                    self.dataCache = self.dataCache[-self.MAX_FRAME_SIZE :]
+                    del self.dataCache[: -self.MAX_FRAME_SIZE]
                 break
             cmdBytes = self.dataCache[cmdFront : cmdRear + len(RECV_END)]
             try:
@@ -53,8 +54,8 @@ class ServerProtocol(asyncio.DatagramProtocol):
                 else:
                     for callback in self.errorListener:
                         callback(e)
-                    self.dataCache = self.dataCache[cmdFront + 1 :]
+                    del self.dataCache[: cmdFront + 1]
                     continue
-            self.dataCache = self.dataCache[cmdFront + len(cmd.bytesData) :]
+            del self.dataCache[: cmdFront + len(cmd.bytesData)]
             for callback in self.cmdListener:
                 callback(cmd)
