@@ -188,24 +188,17 @@ def show_plot(dataBuffers: dict[str, DataBuffer]):
     H_WHITESPACE = 0.05
     V_WHITESPACE = 0.05
 
-    def log_trans(x):
-        return np.log10(np.abs(x) + 1e-6)
-
     def update_plot(name, datasets, _):
         nonlocal dataBuffers
         for i, chart in enumerate(charts):
             with dataBuffers[name]["lock"]:
-                data = (
-                    np.frombuffer(
-                        dataBuffers[name]["buffer"],
-                        dtype=DAS_CONFIG["dtype"],
-                    )
-                    / 255
-                    * np.pi
-                )
+                data = np.frombuffer(
+                    dataBuffers[name]["buffer"],
+                    dtype=DAS_CONFIG["dtype"],
+                ) * (np.pi / 255)
             if chart["type"] == "heat":
                 heatData = np.roll(datasets[i].get_array(), -1, axis=0)
-                heatData[-1, :] = log_trans(data)
+                heatData[-1, :] = np.log1p(np.abs(data, out=data), out=data)
                 datasets[i].set_data(heatData)
             elif chart["type"] == "space":
                 datasets[i].set_ydata(data)
@@ -239,13 +232,13 @@ def show_plot(dataBuffers: dict[str, DataBuffer]):
         for i, chart in enumerate(charts):
             if chart["type"] == "heat":
                 data = axes[i].imshow(
-                    log_trans(
+                    np.log1p(
                         np.zeros((chart["size"], len(DAS_CONFIG["validPointRange"])))
                     ),
                     aspect="auto",
                     norm=mcolors.Normalize(
-                        vmin=log_trans(0),
-                        vmax=log_trans(max(-target["min"], target["max"])),
+                        vmin=np.log1p(0),
+                        vmax=np.log1p(max(-target["min"], target["max"])),
                     ),
                 )
                 datasets.append(data)
