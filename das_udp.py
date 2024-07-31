@@ -48,14 +48,13 @@ class ServerProtocol(asyncio.DatagramProtocol):
             cmdBytes = self.dataCache[cmdFront : cmdRear + len(RECV_END)]
             try:
                 cmd = RecvCommand(cmdBytes)
-            except (ValueError, DataNotReceived) as e:
-                if isinstance(e, DataNotReceived):
-                    break
-                else:
-                    for callback in self.errorListener:
-                        callback(e)
-                    del self.dataCache[: cmdFront + 1]
-                    continue
+            except DataNotReceived:
+                break
+            except ValueError as e:
+                for callback in self.errorListener:
+                    callback(e)
+                del self.dataCache[: cmdFront + 1]
+                continue
             del self.dataCache[: cmdFront + len(cmd.bytesData)]
             for callback in self.cmdListener:
                 callback(cmd)
