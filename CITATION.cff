@@ -1,0 +1,10 @@
+# 用Python开发，DAS数据采集软件，使用UDP协议与DAS设备通信，实现数据采集功能。
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: DAS Data Collection Software
+abstract: A data collection software for DAS based on UDP protocol in Python
+authors:
+  - family-names: Zhu
+    given-names: Wenhao
+    orcid: https://orcid.org/0009-0007-4569-8659
+repository-code: "https://github.com/PairZhu/DAS_Client"
